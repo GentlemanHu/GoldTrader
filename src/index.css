@@ -1,0 +1,107 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-primary: #0A1929;
+  --bg-secondary: #1A202C;
+  --text-primary: #FFFFFF;
+  --text-secondary: #A0AEC0;
+  --text-muted: #718096;
+  --border-color: #2D3748;
+}
+
+.light-theme {
+  --bg-primary: #F7FAFC;
+  --bg-secondary: #EDF2F7;
+  --text-primary: #1A202C;
+  --text-secondary: #2D3748;
+  --text-muted: #4A5568;
+  --border-color: #E2E8F0;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.bg-gray-900 {
+  background-color: var(--bg-primary);
+}
+
+.bg-gray-800 {
+  background-color: var(--bg-secondary);
+}
+
+.text-white {
+  color: var(--text-primary);
+}
+
+.text-gray-400 {
+  color: var(--text-secondary);
+}
+
+.text-gray-300 {
+  color: var(--text-secondary);
+}
+
+.border-gray-800 {
+  border-color: var(--border-color);
+}
+
+.border-gray-700 {
+  border-color: var(--border-color);
+}
+
+/* Custom scrollbar styling */
+.custom-scrollbar {
+  overflow-y: auto;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  background-color: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(156, 163, 175, 0.2);
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(156, 163, 175, 0.3);
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background-color: transparent;
+}
+
+/* Ensure hover states have good contrast in light mode */
+.light-theme .hover\:text-white:hover {
+  color: var(--text-primary);
+}
+
+.light-theme .hover\:bg-gray-800:hover {
+  background-color: var(--text-muted);
+  color: var(--bg-primary);
+}
+
+/* Fix settings dropdown contrast in light mode */
+.light-theme .bg-gray-800 {
+  background-color: var(--bg-secondary);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+/* Ensure input fields have good contrast */
+.light-theme input {
+  color: var(--text-primary);
+  background-color: var(--bg-secondary);
+  border-color: var(--border-color);
+}
+
+/* Fix button hover states */
+.light-theme .hover\:bg-gray-700:hover {
+  background-color: var(--text-muted);
+  color: var(--bg-primary);
+}
