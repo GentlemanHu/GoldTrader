@@ -1,6 +1,6 @@
 import React from 'react';
 import { Strategy } from '../../types';
-import { Zap, AlertTriangle, ArrowRight } from 'lucide-react';
+import { Zap, ArrowRight } from 'lucide-react';
 
 interface StrategyCardProps {
   strategy: Strategy;

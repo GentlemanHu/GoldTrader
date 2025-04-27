@@ -1,10 +1,101 @@
 import React from 'react';
 import StrategyCard from '../widgets/StrategyCard';
 import SummaryCard from '../widgets/SummaryCard';
-import { mockStrategies, mockPatternDetections, mockNewsSentiments } from '../../utils/mockData';
-import { Zap, RefreshCw, Filter, ArrowRightLeft, Settings } from 'lucide-react';
+import { useNewsSentiment } from '../../hooks/useNewsSentiment';
+import { useForexData } from '../../hooks/useForexData';
+import { detectPatterns } from '../../utils/patternDetection';
+import { PatternDetection, NewsSentiment, Strategy } from '../../types';
+import { Zap, RefreshCw, Filter } from 'lucide-react';
 
 const StrategyAgent: React.FC = () => {
+  // ...existing real-time data hooks and pattern detection logic...
+  function generateStrategies(patterns: PatternDetection[], news: NewsSentiment[]): Strategy[] {
+    const strategies = [];
+    // Example: Bullish pattern + positive news
+    const bullishPatterns = patterns.filter(p => p.direction === 'bullish' && p.confidence > 0.75);
+    const positiveNews = news.filter(n => n.sentiment === 'positive' && n.impact === 'high');
+    if (bullishPatterns.length && positiveNews.length) {
+      strategies.push({
+        id: 'bullish-combo',
+        name: 'Pattern + News Bullish',
+        description: `Strong bullish pattern(s) (${bullishPatterns.map(p => p.pattern).join(', ')}) and positive news detected: ${positiveNews[0].title}`,
+        entryConditions: ['Bullish technical pattern detected', 'High-impact positive news sentiment'],
+        exitConditions: ['Pattern invalidated', 'Negative news emerges'],
+        stopLoss: 1.2,
+        takeProfit: 2.5,
+        timeframe: '1D',
+        riskReward: 2.1,
+        expectedWinRate: 0.6
+      });
+    }
+    // Bearish pattern + negative news
+    const bearishPatterns = patterns.filter(p => p.direction === 'bearish' && p.confidence > 0.75);
+    const negativeNews = news.filter(n => n.sentiment === 'negative' && n.impact === 'high');
+    if (bearishPatterns.length && negativeNews.length) {
+      strategies.push({
+        id: 'bearish-combo',
+        name: 'Pattern + News Bearish',
+        description: `Strong bearish pattern(s) (${bearishPatterns.map(p => p.pattern).join(', ')}) and negative news detected: ${negativeNews[0].title}`,
+        entryConditions: ['Bearish technical pattern detected', 'High-impact negative news sentiment'],
+        exitConditions: ['Pattern invalidated', 'Positive news emerges'],
+        stopLoss: 1.5,
+        takeProfit: 3.0,
+        timeframe: '1D',
+        riskReward: 2.0,
+        expectedWinRate: 0.55
+      });
+    }
+    // Fallback: show top pattern-based strategies
+    if (!strategies.length && patterns.length) {
+      strategies.push(...patterns.slice(0, 2).map((p, i) => ({
+        id: `pattern-strategy-${i}`,
+        name: `${p.pattern} Strategy`,
+        description: `Trade based on detected pattern: ${p.pattern}`,
+        entryConditions: [p.description],
+        exitConditions: ['Pattern invalidated'],
+        stopLoss: 1.0,
+        takeProfit: 2.0,
+        timeframe: p.timeframe,
+        riskReward: 2.0,
+        expectedWinRate: 0.5 + 0.2 * p.confidence
+      })));
+    }
+    // Fallback: show top news-based strategies
+    if (!strategies.length && news.length) {
+      strategies.push(...news.slice(0, 2).map((n, i) => ({
+        id: `news-strategy-${i}`,
+        name: `News Sentiment ${n.sentiment === 'positive' ? 'Bullish' : n.sentiment === 'negative' ? 'Bearish' : 'Neutral'}`,
+        description: `Trade based on high-impact news: ${n.title}`,
+        entryConditions: [n.summary],
+        exitConditions: ['Sentiment reverses'],
+        stopLoss: 1.0,
+        takeProfit: 2.0,
+        timeframe: '1D',
+        riskReward: 2.0,
+        expectedWinRate: 0.5
+      })));
+    }
+    return strategies;
+  }
+  // Real-time news sentiment
+  const { news: newsSentiments, loading: newsLoading, error: newsError } = useNewsSentiment(10, 10);
+  // Real-time pattern detection
+  const { historicalData, loading: candlesLoading, error: candlesError } = useForexData(60000, '1day', 60);
+  const [patternDetections, setPatternDetections] = React.useState<PatternDetection[]>([]);
+  React.useEffect(() => {
+    if (historicalData && Array.isArray(historicalData)) {
+      const candles = historicalData.map((c: any) => ({
+        date: c.datetime || c.date,
+        open: parseFloat(c.open),
+        high: parseFloat(c.high),
+        low: parseFloat(c.low),
+        close: parseFloat(c.close),
+        volume: c.volume ? parseFloat(c.volume) : undefined
+      }));
+      setPatternDetections(detectPatterns(candles, '1D'));
+    }
+  }, [historicalData]);
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-start">
@@ -14,7 +105,6 @@ const StrategyAgent: React.FC = () => {
             AI-generated trading strategies based on patterns and sentiment
           </p>
         </div>
-        
         <div className="flex space-x-2">
           <button className="flex items-center py-2 px-3 bg-gray-800 text-white rounded hover:bg-gray-700">
             <Filter className="h-4 w-4 mr-2" />
@@ -26,17 +116,15 @@ const StrategyAgent: React.FC = () => {
           </button>
         </div>
       </div>
-      
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
           <div className="bg-gray-800 rounded-lg p-4 h-full">
             <h3 className="text-lg font-semibold mb-4 text-white">Strategy Inputs</h3>
-            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-gray-700 p-3 rounded-lg">
                 <h4 className="text-sm font-medium text-white mb-2">Technical Patterns</h4>
                 <ul className="text-sm text-gray-300 space-y-2">
-                  {mockPatternDetections.slice(0, 3).map(pattern => (
+                  {patternDetections.slice(0, 3).map(pattern => (
                     <li key={pattern.id} className="flex justify-between items-center">
                       <span>{pattern.pattern}</span>
                       <span className={`text-xs ${
@@ -48,11 +136,10 @@ const StrategyAgent: React.FC = () => {
                   ))}
                 </ul>
               </div>
-              
               <div className="bg-gray-700 p-3 rounded-lg">
                 <h4 className="text-sm font-medium text-white mb-2">News Sentiment</h4>
                 <ul className="text-sm text-gray-300 space-y-2">
-                  {mockNewsSentiments.slice(0, 3).map(news => (
+                  {newsSentiments.slice(0, 3).map(news => (
                     <li key={news.id} className="flex justify-between items-center">
                       <span className="truncate pr-3">{news.title}</span>
                       <span className={`text-xs ${
@@ -66,7 +153,6 @@ const StrategyAgent: React.FC = () => {
                 </ul>
               </div>
             </div>
-            
             <div className="mt-4 bg-gray-700 p-3 rounded-lg">
               <h4 className="text-sm font-medium text-white mb-2">Strategy Parameters</h4>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -90,139 +176,78 @@ const StrategyAgent: React.FC = () => {
             </div>
           </div>
         </div>
-        
         <SummaryCard title="Generated Strategy Stats">
           <div className="space-y-3">
             <div className="flex justify-between">
               <span className="text-sm">Total Strategies:</span>
-              <span className="font-medium">{mockStrategies.length}</span>
+              <span className="font-medium">{generateStrategies(patternDetections, newsSentiments).length}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-sm">Avg. Risk/Reward:</span>
               <span className="font-medium">
-                {(mockStrategies.reduce((sum, s) => sum + s.riskReward, 0) / mockStrategies.length).toFixed(1)}
+                {(() => {
+                  const strategies = generateStrategies(patternDetections, newsSentiments);
+                  if (!strategies.length) return '0.0';
+                  return (strategies.reduce((sum: number, s) => sum + s.riskReward, 0) / strategies.length).toFixed(1);
+                })()}
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-sm">Avg. Win Rate:</span>
               <span className="font-medium">
-                {(mockStrategies.reduce((sum, s) => sum + s.expectedWinRate, 0) / mockStrategies.length * 100).toFixed(0)}%
+                {(() => {
+                  const strategies = generateStrategies(patternDetections, newsSentiments);
+                  if (!strategies.length) return '0%';
+                  return ((strategies.reduce((sum: number, s) => sum + s.expectedWinRate, 0) / strategies.length) * 100).toFixed(0) + '%';
+                })()}
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-sm">Best Strategy:</span>
-              <span className="font-medium text-amber-500">Pattern-Based Breakout</span>
+              <span className="font-medium text-amber-500">{(() => {
+                const strategies = generateStrategies(patternDetections, newsSentiments);
+                if (!strategies.length) return 'N/A';
+                // Just pick the highest win rate
+                const best = strategies.reduce((prev, curr) => curr.expectedWinRate > prev.expectedWinRate ? curr : prev, strategies[0]);
+                return best.name;
+              })()}</span>
             </div>
-            
             <div className="h-px bg-gray-700 my-3"></div>
-            
             <div className="bg-amber-500 bg-opacity-10 border border-amber-500 rounded-lg p-2">
               <div className="flex items-center">
                 <Zap className="h-4 w-4 text-amber-500 mr-2" />
                 <h4 className="text-sm font-medium text-amber-500">System Recommendation</h4>
               </div>
               <p className="text-xs text-gray-300 mt-1">
-                Based on current market conditions, the Pattern-Based Breakout strategy has the highest probability of success.
+                Based on current market conditions, the {(() => {
+                  const strategies = generateStrategies(patternDetections, newsSentiments);
+                  if (!strategies.length) return 'N/A';
+                  // Just pick the highest win rate
+                  const best = strategies.reduce((prev, curr) => curr.expectedWinRate > prev.expectedWinRate ? curr : prev, strategies[0]);
+                  return best.name;
+                })()} strategy has the highest probability of success.
               </p>
             </div>
           </div>
         </SummaryCard>
       </div>
-      
       <div>
         <h2 className="text-xl font-semibold text-white mb-4">Generated Strategies</h2>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {mockStrategies.map(strategy => (
-            <StrategyCard key={strategy.id} strategy={strategy} />
-          ))}
-        </div>
-      </div>
-      
-      <div className="bg-gray-800 rounded-lg p-4">
-        <div className="flex justify-between items-center mb-3">
-          <h3 className="text-lg font-semibold text-white">Strategy Generation Settings</h3>
-          <button className="p-2 text-gray-400 hover:text-white bg-gray-700 rounded-md">
-            <Settings className="h-4 w-4" />
-          </button>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div className="bg-gray-700 p-3 rounded-lg">
-            <h4 className="text-sm font-medium text-white mb-2">Data Sources</h4>
-            <div className="space-y-2 text-sm">
-              <label className="flex items-center">
-                <input type="checkbox" className="mr-2" checked />
-                <span>Use Technical Patterns</span>
-              </label>
-              <label className="flex items-center">
-                <input type="checkbox" className="mr-2" checked />
-                <span>Use News Sentiment</span>
-              </label>
-              <label className="flex items-center">
-                <input type="checkbox" className="mr-2" />
-                <span>Use Market Indicators</span>
-              </label>
-            </div>
+        {(candlesLoading || newsLoading) ? (
+          <div className="flex justify-center items-center py-8">
+            <span className="text-gray-400 animate-pulse">Loading strategies...</span>
           </div>
-          
-          <div className="bg-gray-700 p-3 rounded-lg">
-            <h4 className="text-sm font-medium text-white mb-2">Risk Management</h4>
-            <div className="space-y-2">
-              <div>
-                <div className="flex justify-between text-xs text-gray-400 mb-1">
-                  <span>Risk/Reward Min</span>
-                  <span>1.5</span>
-                </div>
-                <input 
-                  type="range" 
-                  min="1" 
-                  max="3" 
-                  step="0.1" 
-                  value="1.5" 
-                  className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer"
-                />
-              </div>
-              <div>
-                <div className="flex justify-between text-xs text-gray-400 mb-1">
-                  <span>Max Risk Per Trade</span>
-                  <span>2%</span>
-                </div>
-                <input 
-                  type="range" 
-                  min="0.5" 
-                  max="5" 
-                  step="0.5" 
-                  value="2" 
-                  className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer"
-                />
-              </div>
-            </div>
+        ) : (candlesError || newsError) ? (
+          <div className="flex justify-center items-center py-8">
+            <span className="text-red-500">Failed to load data. Please try again later.</span>
           </div>
-          
-          <div className="bg-gray-700 p-3 rounded-lg">
-            <h4 className="text-sm font-medium text-white mb-2">Strategy Types</h4>
-            <div className="flex flex-wrap gap-2">
-              <span className="bg-amber-500 text-gray-900 text-xs rounded px-2 py-1">Trend Following</span>
-              <span className="bg-amber-500 text-gray-900 text-xs rounded px-2 py-1">Breakout</span>
-              <span className="bg-amber-500 text-gray-900 text-xs rounded px-2 py-1">Reversal</span>
-              <span className="bg-gray-600 text-xs rounded px-2 py-1">Mean Reversion</span>
-              <span className="bg-gray-600 text-xs rounded px-2 py-1">Scalping</span>
-            </div>
-            <div className="mt-2 flex justify-end">
-              <button className="text-xs text-amber-500 hover:text-amber-400">
-                Select All
-              </button>
-            </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {generateStrategies(patternDetections, newsSentiments).map(strategy => (
+              <StrategyCard key={strategy.id} strategy={strategy} />
+            ))}
           </div>
-        </div>
-        
-        <div className="mt-4 flex justify-end">
-          <button className="py-2 px-4 bg-amber-500 text-gray-900 rounded font-medium text-sm hover:bg-amber-600 transition-colors flex items-center">
-            <ArrowRightLeft className="h-4 w-4 mr-2" />
-            Generate Strategies
-          </button>
-        </div>
+        )}
       </div>
     </div>
   );
