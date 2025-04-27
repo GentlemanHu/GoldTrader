@@ -15,6 +15,7 @@ import History from '../utilities/History';
 
 const Layout: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const renderContent = () => {
     switch (activeTab) {
@@ -43,21 +44,28 @@ const Layout: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
-      <Header className="fixed top-0 w-full z-50" />
-      
+      <Header className="fixed top-0 w-full z-50" onMenuClick={() => setSidebarOpen(true)} />
+      {/* Sidebar: desktop and mobile drawer */}
+      <Sidebar
+        activeTab={activeTab}
+        setActiveTab={(tab) => {
+          setActiveTab(tab);
+          setSidebarOpen(false); // close drawer on nav
+        }}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
       <div className="flex pt-16">
-        <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
-        
-        <div className="flex-1 md:ml-64">
+        {/* Main content area: full width on mobile, md:ml-64 on desktop */}
+        <div className="flex-1 w-full md:ml-64">
           <div className="flex flex-col min-h-[calc(100vh-4rem)]">
-            <main className="flex-1 p-4 lg:p-6">
+            <main className="flex-1 p-2 sm:p-4 lg:p-6">
               {renderContent()}
             </main>
             <Footer />
           </div>
         </div>
       </div>
-      
       <MobileNavigation activeTab={activeTab} setActiveTab={setActiveTab} />
     </div>
   );
