@@ -36,7 +36,7 @@ export function useNewsSentiment(count = 10, cacheMinutes = 10): UseNewsSentimen
           localStorage.setItem(cacheKey, JSON.stringify({ data, timestamp: Date.now() }));
         }
       })
-      .catch(e => {
+      .catch(() => {
         if (!cancelled) {
           setError('Failed to fetch news sentiment.');
           setLoading(false);

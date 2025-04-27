@@ -1,42 +1,35 @@
-import * as React from 'react';
+import React, { useMemo } from 'react';
 import PriceChart from '../charts/PriceChart';
 import SentimentChart from '../charts/SentimentChart';
 import BacktestResultChart from '../charts/BacktestResultChart';
 import MetricsCard from '../widgets/MetricsCard';
 import SummaryCard from '../widgets/SummaryCard';
 import PatternCard from '../widgets/PatternCard';
-// NewsCard is used in widgets and may be referenced by other dashboard components.
-
+import NewsCard from '../widgets/NewsCard';
 import PipelineStatus from '../widgets/PipelineStatus';
 import { useForexData } from '../../hooks/useForexData';
-import { mockBacktestResults, mockPipelineStatus } from '../../utils/mockData';
+import { useNewsSentiment } from '../../hooks/useNewsSentiment';
 import { detectPatterns } from '../../utils/patternDetection';
+import { mockBacktestResults, mockPipelineStatus } from '../../utils/mockData';
 
 const Dashboard: React.FC = () => {
-  // Lift timeframe state up
-  const [timeframe, setTimeframe] = React.useState('1D');
-  const timeframeMap: Record<string, {interval: string, outputsize: number}> = {
-    '1H': { interval: '1h', outputsize: 60 },
-    '4H': { interval: '4h', outputsize: 60 },
-    '1D': { interval: '1day', outputsize: 60 },
-    '1W': { interval: '1week', outputsize: 60 },
-  };
-  const { currentPrice: price, historicalData, loading, error } = useForexData(30000, timeframeMap[timeframe].interval, timeframeMap[timeframe].outputsize);
+  // Dashboard-level timeframe state for PriceChart
+  const [timeframe, setTimeframe] = React.useState<string>('1D');
+  const { historicalData, price, loading, error } = useForexData(30000); // Update every 30 seconds
+  const { news, loading: newsLoading, error: newsError } = useNewsSentiment(5, 10);
 
-  // Real-time pattern detection
-  const detectedPatterns = React.useMemo(() => {
-    if (!historicalData) return [];
-    return detectPatterns(historicalData, timeframe);
-  }, [historicalData, timeframe]);
+  // Run pattern detection on latest candles
+  const patterns = useMemo(() => {
+    if (!historicalData || !Array.isArray(historicalData)) return [];
+    return detectPatterns(historicalData, '1day').sort((a, b) => b.confidence - a.confidence);
+  }, [historicalData]);
 
   // Calculate price changes
   const getPriceChanges = () => {
     if (!price) return { change: 0, changePercent: 0 };
-    
     const prevPrice = price * 0.9975; // Simulated previous price for demo
     const change = price - prevPrice;
     const changePercent = (change / prevPrice) * 100;
-    
     return { change, changePercent };
   };
 
@@ -44,13 +37,9 @@ const Dashboard: React.FC = () => {
 
   if (error) {
     console.error('Error fetching forex data:', error);
-    return (
-      <div className="bg-red-900 text-red-200 p-6 rounded-lg shadow-lg mt-8">
-        <h2 className="text-xl font-bold mb-2">Unable to fetch gold price data</h2>
-        <p className="mb-2">{error}</p>
-        <p className="text-sm text-red-300">Please check your API key, internet connection, or try again later.</p>
-      </div>
-    );
+  }
+  if (newsError) {
+    console.error('Error fetching news sentiment:', newsError);
   }
 
   return (
@@ -65,8 +54,8 @@ const Dashboard: React.FC = () => {
         <div className="grid grid-cols-2 gap-4 lg:place-self-end">
           <MetricsCard 
             title="Current Gold Price" 
-            value={loading ? "Loading..." : (price && typeof price === 'number' && !isNaN(price)) ? `$${price.toFixed(2)}` : "$0.00"}
-            change={loading ? "" : (typeof changePercent === 'number' && !isNaN(changePercent)) ? `${changePercent > 0 ? '+' : ''}${changePercent.toFixed(2)}%` : ''}
+            value={loading ? "Loading..." : price ? `$${price.toFixed(2)}` : "$0.00"}
+            change={loading ? "" : `${changePercent > 0 ? '+' : ''}${changePercent.toFixed(2)}%`}
             isPositive={changePercent > 0}
             icon="chart"
           />
@@ -109,20 +98,34 @@ const Dashboard: React.FC = () => {
         <div>
           <h2 className="text-xl font-semibold text-white mb-3">Latest Pattern Detections</h2>
           <div className="grid grid-cols-1 gap-3">
-            {detectedPatterns.length === 0 ? (
-              <div className="text-gray-400">No patterns detected in the latest data.</div>
+            {loading ? (
+              <div className="text-gray-400">Loading patterns...</div>
+            ) : error ? (
+              <div className="text-red-400">{error}</div>
+            ) : patterns.length === 0 ? (
+              <div className="text-gray-400">No patterns detected.</div>
             ) : (
-              detectedPatterns.slice(-2).map(pattern => (
+              patterns.slice(0, 2).map(pattern => (
                 <PatternCard key={pattern.id} pattern={pattern} />
               ))
             )}
           </div>
         </div>
-        
+
         <div>
           <h2 className="text-xl font-semibold text-white mb-3">Latest News Impact</h2>
           <div className="grid grid-cols-1 gap-3">
-            {/* TODO: Replace with real news sentiment cards */}
+            {newsLoading ? (
+              <div className="text-gray-400">Loading news...</div>
+            ) : newsError ? (
+              <div className="text-red-400">{newsError}</div>
+            ) : news.length === 0 ? (
+              <div className="text-gray-400">No news found.</div>
+            ) : (
+              news.slice(0, 2).map(item => (
+                <NewsCard key={item.id} news={item} />
+              ))
+            )}
           </div>
         </div>
       </div>
