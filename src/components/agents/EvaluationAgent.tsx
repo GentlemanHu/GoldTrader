@@ -1,89 +1,68 @@
 import React from 'react';
-import BacktestResultChart from '../charts/BacktestResultChart';
+import { useTradeStore } from '../../store/useTradeStore';
 import MetricsCard from '../widgets/MetricsCard';
 import SummaryCard from '../widgets/SummaryCard';
-import { mockBacktestResults, mockStrategies } from '../../utils/mockData';
-import { Calendar, Download, BarChart2, RefreshCw, Filter, AlertTriangle } from 'lucide-react';
+import { Download, BarChart2 } from 'lucide-react';
 
 const EvaluationAgent: React.FC = () => {
-  // Get the best backtest result based on profit factor
-  const bestResult = mockBacktestResults.reduce(
-    (best, current) => (current.profitFactor > best.profitFactor ? current : best), 
-    mockBacktestResults[0]
-  );
-  
-  const getStrategyNameById = (id: string) => {
-    const strategy = mockStrategies.find(s => s.id === id);
-    return strategy ? strategy.name : 'Unknown Strategy';
-  };
+  const trades = useTradeStore((state) => state.trades);
+
+  // Metrics calculations
+  const totalTrades = trades.length;
+  const wins = trades.filter((t) => t.profit > 0);
+  const losses = trades.filter((t) => t.profit < 0);
+  const winRate = totalTrades > 0 ? wins.length / totalTrades : 0;
+  const profitFactor = losses.length > 0 ? (wins.reduce((sum, t) => sum + t.profit, 0) / Math.abs(losses.reduce((sum, t) => sum + t.profit, 0))) : (wins.length > 0 ? 999 : 0);
+  const avgTrade = totalTrades > 0 ? trades.reduce((sum, t) => sum + t.profit, 0) / totalTrades : 0;
+  // Statistics: Expectancy, Recovery Factor, Kelly
+  const expectancy = avgTrade * winRate;
+  const grossLoss = Math.abs(losses.reduce((sum, t) => sum + t.profit, 0));
+  const initialBalance = 10000; // Could be user input
+  const finalBalance = initialBalance + trades.reduce((sum, t) => sum + t.profit, 0);
+  const recoveryFactor = grossLoss > 0 ? (finalBalance - initialBalance) / grossLoss : 0;
+  const kellyPct = (winRate - ((1 - winRate) / (profitFactor > 0 ? profitFactor / winRate : 1))) || 0;
+  // System Evaluation Summary
+  let systemSummary = '';
+  if (totalTrades === 0) {
+    systemSummary = 'No trades added yet. Add trades to evaluate the system.';
+  } else if (winRate > 0.6 && profitFactor > 1.5) {
+    systemSummary = 'This strategy shows strong performance with good risk-adjusted returns.';
+  } else if (winRate > 0.5 && profitFactor > 1) {
+    systemSummary = 'This strategy is profitable but could be improved for better risk-adjusted returns.';
+  } else {
+    systemSummary = 'This strategy needs improvement. Review your trade criteria and risk management.';
+  }
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-start">
-        <div>
-          <h1 className="text-2xl font-bold text-white mb-2">Backtest Evaluation</h1>
-          <p className="text-gray-400">
-            Evaluating strategy performance through historical backtesting
-          </p>
-        </div>
-        
-        <div className="flex space-x-2">
-          <button className="flex items-center py-2 px-3 bg-gray-800 text-white rounded hover:bg-gray-700">
-            <Calendar className="h-4 w-4 mr-2" />
-            <span>Jan 1 - Jan 30, 2023</span>
-          </button>
-          <button className="flex items-center py-2 px-3 bg-amber-500 text-gray-900 rounded hover:bg-amber-600">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            <span>Run Backtest</span>
-          </button>
-        </div>
+      <div className="flex flex-col items-start mb-4">
+        <h1 className="text-2xl font-bold text-white mb-2">Backtest Evaluation</h1>
+        <p className="text-gray-400">
+          Evaluating strategy performance through historical backtesting
+        </p>
       </div>
-      
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-8">
         <MetricsCard 
-          title="Best Strategy" 
-          value={getStrategyNameById(bestResult.strategyId)}
-          description={`${bestResult.winRate * 100}% Win Rate, ${bestResult.profitFactor.toFixed(1)} Profit Factor`}
-          icon="award"
+          title="Win Rate" 
+          value={`${(winRate * 100).toFixed(0)}%`} 
+          icon="award" 
         />
         <MetricsCard 
-          title="Total Return" 
-          value={`$${(bestResult.finalBalance - bestResult.initialBalance).toFixed(2)}`}
-          change={`+${((bestResult.finalBalance / bestResult.initialBalance - 1) * 100).toFixed(2)}%`}
-          isPositive={bestResult.finalBalance > bestResult.initialBalance}
-          icon="chart"
+          title="Profit Factor" 
+          value={profitFactor.toFixed(2)} 
+          icon="chart" 
         />
         <MetricsCard 
-          title="Max Drawdown" 
-          value={`${bestResult.maxDrawdown.toFixed(2)}%`}
-          description="Risk assessment: Moderate"
-          isPositive={false}
-          icon="target"
+          title="Avg. Trade" 
+          value={`$${avgTrade.toFixed(2)}`} 
+          icon="chart" 
         />
         <MetricsCard 
-          title="Sharpe Ratio" 
-          value={bestResult.sharpeRatio.toFixed(2)}
-          description="Above average risk-adjusted return"
-          isPositive={bestResult.sharpeRatio > 1}
-          icon="chart"
+          title="Total Trades" 
+          value={`${totalTrades}`} 
+          icon="target" 
         />
       </div>
-      
-      <div className="grid grid-cols-1 gap-6">
-        <BacktestResultChart result={bestResult} />
-      </div>
-      
-      <div className="bg-amber-500 bg-opacity-10 border border-amber-500 rounded-lg p-4 flex items-start">
-        <AlertTriangle className="h-5 w-5 text-amber-500 mr-3 mt-0.5" />
-        <div>
-          <h3 className="text-amber-500 font-medium">Evaluation Insight</h3>
-          <p className="text-gray-300 text-sm">
-            The Pattern-Based Breakout strategy performed best during high-volatility market conditions.
-            Consider adjusting the stop loss to 1.2% to improve the risk-adjusted return even further.
-          </p>
-        </div>
-      </div>
-      
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
           <h3 className="text-lg font-semibold text-white mb-3">Trade Details</h3>
@@ -102,27 +81,33 @@ const EvaluationAgent: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-700">
-                  {bestResult.trades.slice(0, 5).map((trade, index) => (
-                    <tr key={trade.id} className="hover:bg-gray-750">
-                      <td className="px-4 py-3 text-sm text-gray-300">{index + 1}</td>
-                      <td className="px-4 py-3 text-sm text-gray-300">{trade.entryDate}</td>
-                      <td className="px-4 py-3 text-sm text-gray-300">{trade.exitDate}</td>
-                      <td className="px-4 py-3 text-sm">
-                        <span className={`px-2 py-1 text-xs rounded-full ${
-                          trade.direction === 'long' ? 'bg-green-500 bg-opacity-20 text-green-400' : 'bg-red-500 bg-opacity-20 text-red-400'
-                        }`}>
-                          {trade.direction}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-300">${trade.entryPrice.toFixed(2)}</td>
-                      <td className="px-4 py-3 text-sm text-gray-300">${trade.exitPrice.toFixed(2)}</td>
-                      <td className={`px-4 py-3 text-sm font-medium ${
-                        trade.profit >= 0 ? 'text-green-500' : 'text-red-500'
-                      }`}>
-                        {trade.profit >= 0 ? '+' : ''}${trade.profit.toFixed(2)}
-                      </td>
+                  {trades.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="text-center text-gray-400 py-6">No trades added yet.</td>
                     </tr>
-                  ))}
+                  ) : (
+                    trades.map((trade, index) => (
+                      <tr key={trade.id} className="hover:bg-gray-750">
+                        <td className="px-4 py-3 text-sm text-gray-300">{index + 1}</td>
+                        <td className="px-4 py-3 text-sm text-gray-300">{trade.entryDate}</td>
+                        <td className="px-4 py-3 text-sm text-gray-300">{trade.exitDate}</td>
+                        <td className="px-4 py-3 text-sm">
+                          <span className={`px-2 py-1 text-xs rounded-full ${
+                            trade.type === 'long' ? 'bg-green-500 bg-opacity-20 text-green-400' : 'bg-red-500 bg-opacity-20 text-red-400'
+                          }`}>
+                            {trade.type}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-300">${trade.entry.toFixed(2)}</td>
+                        <td className="px-4 py-3 text-sm text-gray-300">${trade.exit.toFixed(2)}</td>
+                        <td className={`px-4 py-3 text-sm font-medium ${
+                          trade.profit >= 0 ? 'text-green-500' : 'text-red-500'
+                        }`}>
+                          {trade.profit >= 0 ? '+' : ''}${trade.profit.toFixed(2)}
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -134,68 +119,59 @@ const EvaluationAgent: React.FC = () => {
             </div>
           </div>
         </div>
-        
         <SummaryCard title="Performance Metrics">
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
-              <div className="bg-gray-700 p-2 rounded">
-                <div className="text-xs text-gray-400">Win Rate</div>
-                <div className="text-white font-medium">{(bestResult.winRate * 100).toFixed(0)}%</div>
-              </div>
-              <div className="bg-gray-700 p-2 rounded">
-                <div className="text-xs text-gray-400">Profit Factor</div>
-                <div className="text-white font-medium">{bestResult.profitFactor.toFixed(2)}</div>
-              </div>
-              <div className="bg-gray-700 p-2 rounded">
-                <div className="text-xs text-gray-400">Avg. Trade</div>
-                <div className="text-white font-medium">${bestResult.averageTrade.toFixed(2)}</div>
-              </div>
-              <div className="bg-gray-700 p-2 rounded">
-                <div className="text-xs text-gray-400">Total Trades</div>
-                <div className="text-white font-medium">{bestResult.totalTrades}</div>
-              </div>
+              <MetricsCard 
+                title="Win Rate" 
+                value={`${(winRate * 100).toFixed(0)}%`} 
+                icon="award" 
+              />
+              <MetricsCard 
+                title="Profit Factor" 
+                value={profitFactor.toFixed(2)} 
+                icon="chart" 
+              />
+              <MetricsCard 
+                title="Avg. Trade" 
+                value={`$${avgTrade.toFixed(2)}`} 
+                icon="chart" 
+              />
+              <MetricsCard 
+                title="Total Trades" 
+                value={`${totalTrades}`} 
+                icon="target" 
+              />
             </div>
-            
             <div className="h-px bg-gray-700 my-2"></div>
-            
             <h4 className="text-sm font-medium text-white">Statistics</h4>
             <div className="space-y-1 text-sm">
               <div className="flex justify-between">
                 <span className="text-gray-400">Expectancy:</span>
-                <span className="text-white">${(bestResult.averageTrade * bestResult.winRate).toFixed(2)}</span>
+                <span className="text-white">${expectancy.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-400">Recovery Factor:</span>
-                <span className="text-white">
-                  {((bestResult.finalBalance - bestResult.initialBalance) / 
-                    (bestResult.initialBalance * (bestResult.maxDrawdown / 100))).toFixed(2)}
-                </span>
+                <span className="text-white">{recoveryFactor.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-400">Kelly Percentage:</span>
-                <span className="text-white">
-                  {(bestResult.winRate - ((1 - bestResult.winRate) / 
-                    (bestResult.profitFactor / bestResult.winRate))).toFixed(2)}
-                </span>
+                <span className="text-white">{kellyPct.toFixed(2)}</span>
               </div>
             </div>
-            
             <div className="h-px bg-gray-700 my-2"></div>
-            
             <div className="bg-green-500 bg-opacity-10 border border-green-500 rounded-lg p-2">
               <div className="flex items-center">
                 <BarChart2 className="h-4 w-4 text-green-500 mr-2" />
                 <h4 className="text-sm font-medium text-green-500">System Evaluation</h4>
               </div>
               <p className="text-xs text-gray-300 mt-1">
-                This strategy shows strong performance with good risk-adjusted returns.
-                Recommended position size: 2% of capital per trade.
+                {systemSummary}
               </p>
             </div>
           </div>
         </SummaryCard>
       </div>
-      
       <div className="bg-gray-800 rounded-lg p-4">
         <h3 className="text-lg font-semibold mb-3 text-white">Backtesting Configuration</h3>
         
@@ -209,6 +185,8 @@ const EvaluationAgent: React.FC = () => {
                   type="date" 
                   value="2023-01-01"
                   className="mt-1 block w-full bg-gray-600 border-gray-600 rounded text-white text-sm px-2 py-1"
+                  title="Start Date"
+                  placeholder="YYYY-MM-DD"
                 />
               </div>
               <div>
@@ -217,6 +195,8 @@ const EvaluationAgent: React.FC = () => {
                   type="date" 
                   value="2023-01-30"
                   className="mt-1 block w-full bg-gray-600 border-gray-600 rounded text-white text-sm px-2 py-1"
+                  title="End Date"
+                  placeholder="YYYY-MM-DD"
                 />
               </div>
             </div>
@@ -231,6 +211,8 @@ const EvaluationAgent: React.FC = () => {
                   type="number" 
                   value="10000"
                   className="mt-1 block w-full bg-gray-600 border-gray-600 rounded text-white text-sm px-2 py-1"
+                  title="Initial Balance"
+                  placeholder="Initial Balance"
                 />
               </div>
               <div>
@@ -240,6 +222,8 @@ const EvaluationAgent: React.FC = () => {
                   value="0.1"
                   step="0.01"
                   className="mt-1 block w-full bg-gray-600 border-gray-600 rounded text-white text-sm px-2 py-1"
+                  title="Commission Percentage"
+                  placeholder="Commission (%)"
                 />
               </div>
             </div>
