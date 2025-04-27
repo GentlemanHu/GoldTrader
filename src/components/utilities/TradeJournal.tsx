@@ -1,69 +1,91 @@
 import React, { useState } from 'react';
-import { Calendar, Filter, Download, ArrowUpRight, ArrowDownRight, Clock, DollarSign, Plus, Upload, X } from 'lucide-react';
+import { Calendar, ArrowUpRight, ArrowDownRight, Clock, Plus, Upload, X } from 'lucide-react';
 
 interface Trade {
   id: string;
-  date: string;
+  entryDate: string; // ISO string, includes date and time
+  exitDate: string;  // ISO string, includes date and time
+  holdMs: number;    // Hold time in milliseconds
   pair: string;
   type: 'long' | 'short';
   entry: number;
   exit: number;
+  stopLoss: number;
+  lotSize: number;   // Lot size for this trade
   profit: number;
   pips: number;
+  rr: number;        // Risk/Reward ratio for this trade
   strategy: string;
   notes: string;
 }
 
 const TradeJournal: React.FC = () => {
-  const [dateRange, setDateRange] = useState('This Month');
+  const [dateRange] = useState('This Month');
   const [showModal, setShowModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [newEntry, setNewEntry] = useState({
-    date: new Date().toISOString().split('T')[0],
+    entryDate: new Date().toISOString().slice(0, 16), // 'YYYY-MM-DDTHH:mm'
+    exitDate: new Date().toISOString().slice(0, 16),
     type: 'long',
     entry: '',
     exit: '',
+    stopLoss: '',
+    lotSize: '1.00',
     strategy: '',
     notes: ''
   });
   
-  const mockTrades: Trade[] = [
-    {
-      id: '1',
-      date: '2024-03-10',
-      pair: 'XAUUSD',
-      type: 'long',
-      entry: 1962.50,
-      exit: 1975.30,
-      profit: 1280,
-      pips: 128,
-      strategy: 'Pattern-Based Breakout',
-      notes: 'Strong breakout above resistance with increased volume'
-    },
-    {
-      id: '2',
-      date: '2024-03-09',
-      pair: 'XAUUSD',
-      type: 'short',
-      entry: 1980.40,
-      exit: 1965.20,
-      profit: 1520,
-      pips: 152,
-      strategy: 'News Sentiment Reversal',
-      notes: 'Bearish reversal after FOMC minutes'
-    }
-  ];
+  // User trades state (starts empty)
+  const [trades, setTrades] = useState<Trade[]>([]);
 
-  const stats = {
-    totalTrades: 45,
-    winRate: 68,
-    profitFactor: 2.4,
-    averagePips: 85,
-    totalProfit: 12450,
-    bestTrade: 2800,
-    worstTrade: -950,
-    averageHoldTime: '4h 25m'
-  };
+  // Compute stats from trades
+  const stats = React.useMemo(() => {
+    if (trades.length === 0) {
+      return {
+        totalTrades: 0,
+        winRate: 0,
+        profitFactor: 0,
+        averagePips: 0,
+        totalProfit: 0,
+        bestTrade: 0,
+        worstTrade: 0,
+        averageHoldTime: '--',
+      };
+    }
+    const wins = trades.filter(t => t.profit > 0).length;
+    const losses = trades.filter(t => t.profit <= 0).length;
+    const totalProfit = trades.reduce((sum, t) => sum + t.profit, 0);
+    const bestTrade = Math.max(...trades.map(t => t.profit));
+    const worstTrade = Math.min(...trades.map(t => t.profit));
+    const averagePips = trades.reduce((sum, t) => sum + t.pips, 0) / trades.length;
+    // Calculate average hold time
+    const totalMs = trades.reduce((sum, t) => sum + (t.holdMs || 0), 0);
+    const avgMs = totalMs / trades.length;
+    function formatDuration(ms: number) {
+      if (!ms || ms < 60000) return '<1m';
+      const d = Math.floor(ms / (24*60*60*1000));
+      const h = Math.floor((ms % (24*60*60*1000)) / (60*60*1000));
+      const m = Math.floor((ms % (60*60*1000)) / (60*1000));
+      let str = '';
+      if (d) str += `${d}D `;
+      if (h) str += `${h}H `;
+      if (m) str += `${m}M`;
+      return str.trim();
+    }
+    // Average R:R
+    const avgRR = trades.reduce((sum, t) => sum + (t.rr || 0), 0) / trades.length;
+    return {
+      totalTrades: trades.length,
+      winRate: Math.round((wins / trades.length) * 100),
+      profitFactor: losses === 0 ? wins : (wins / (losses || 1)),
+      averagePips,
+      totalProfit,
+      bestTrade,
+      worstTrade,
+      averageHoldTime: formatDuration(avgMs),
+      avgRR: avgRR || 0,
+    };
+  }, [trades]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -73,13 +95,63 @@ const TradeJournal: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // Calculate pips for XAUUSD
+    const entryPrice = parseFloat(newEntry.entry);
+    const exitPrice = parseFloat(newEntry.exit);
+    let pips = 0;
+    if (newEntry.type === 'long') {
+      pips = (exitPrice - entryPrice) / 0.01;
+    } else {
+      pips = (entryPrice - exitPrice) / 0.01;
+    }
+    // Calculate hold time in ms
+    const entryDt = new Date(newEntry.entryDate);
+    const exitDt = new Date(newEntry.exitDate);
+    const holdMs = Math.max(0, exitDt.getTime() - entryDt.getTime());
+    const lotSize = parseFloat(newEntry.lotSize);
+    const stopLoss = parseFloat(newEntry.stopLoss);
+    // Risk and reward in pips
+    let risk = 0, reward = 0;
+    if (newEntry.type === 'long') {
+      risk = (entryPrice - stopLoss) / 0.01;
+      reward = (exitPrice - entryPrice) / 0.01;
+    } else {
+      risk = (stopLoss - entryPrice) / 0.01;
+      reward = (entryPrice - exitPrice) / 0.01;
+    }
+    const rr = risk !== 0 ? Math.abs(reward / risk) : 0;
+    // Correct pip value for XAUUSD: $100 per pip per standard lot (1 lot = 100 oz)
+    const profit = parseFloat((pips * 100 * lotSize).toFixed(2));
+    setTrades(prev => [
+      {
+        id: Date.now().toString(),
+        entryDate: newEntry.entryDate,
+        exitDate: newEntry.exitDate,
+        pair: 'XAUUSD',
+        type: newEntry.type as 'long' | 'short',
+        entry: entryPrice,
+        exit: exitPrice,
+        stopLoss,
+        lotSize,
+        profit,
+        pips: parseFloat(pips.toFixed(1)),
+        rr: parseFloat(rr.toFixed(2)),
+        strategy: newEntry.strategy,
+        notes: newEntry.notes,
+        holdMs,
+      },
+      ...prev
+    ]);
     setShowModal(false);
     setSelectedImage(null);
     setNewEntry({
-      date: new Date().toISOString().split('T')[0],
+      entryDate: new Date().toISOString().slice(0, 16),
+      exitDate: new Date().toISOString().slice(0, 16),
       type: 'long',
       entry: '',
       exit: '',
+      stopLoss: '',
+      lotSize: '1.00',
       strategy: '',
       notes: ''
     });
@@ -116,6 +188,8 @@ const TradeJournal: React.FC = () => {
             <button 
               onClick={() => setShowModal(false)}
               className="absolute top-4 right-4 text-gray-400 hover:text-white"
+              title="Close modal"
+              aria-label="Close modal"
             >
               <X className="h-5 w-5" />
             </button>
@@ -129,12 +203,41 @@ const TradeJournal: React.FC = () => {
               <div className="col-span-2 space-y-4">
                 <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Date</label>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Entry Date/Time</label>
                     <input
-                      type="date"
-                      value={newEntry.date}
-                      onChange={(e) => setNewEntry({...newEntry, date: e.target.value})}
+                      type="datetime-local"
+                      value={newEntry.entryDate}
+                      onChange={(e) => setNewEntry({...newEntry, entryDate: e.target.value})}
                       className="w-full bg-gray-700 border-gray-600 rounded text-white px-3 py-2 text-sm"
+                      title="Entry DateTime"
+                      aria-label="Entry DateTime"
+                      placeholder="Entry date/time"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Exit Date/Time</label>
+                    <input
+                      type="datetime-local"
+                      value={newEntry.exitDate}
+                      onChange={(e) => setNewEntry({...newEntry, exitDate: e.target.value})}
+                      className="w-full bg-gray-700 border-gray-600 rounded text-white px-3 py-2 text-sm"
+                      title="Exit DateTime"
+                      aria-label="Exit DateTime"
+                      placeholder="Exit date/time"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Lot Size</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      value={newEntry.lotSize}
+                      onChange={(e) => setNewEntry({...newEntry, lotSize: e.target.value})}
+                      className="w-full bg-gray-700 border-gray-600 rounded text-white px-3 py-2 text-sm"
+                      title="Lot Size"
+                      aria-label="Lot Size"
+                      placeholder="1.00"
                     />
                   </div>
                   <div>
@@ -143,6 +246,8 @@ const TradeJournal: React.FC = () => {
                       value={newEntry.type}
                       onChange={(e) => setNewEntry({...newEntry, type: e.target.value})}
                       className="w-full bg-gray-700 border-gray-600 rounded text-white px-3 py-2 text-sm"
+                      title="Trade type"
+                      aria-label="Trade type"
                     >
                       <option value="long">Long</option>
                       <option value="short">Short</option>
@@ -179,6 +284,17 @@ const TradeJournal: React.FC = () => {
                       step="0.01"
                       value={newEntry.exit}
                       onChange={(e) => setNewEntry({...newEntry, exit: e.target.value})}
+                      className="w-full bg-gray-700 border-gray-600 rounded text-white px-3 py-2 text-sm"
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Stop-Loss ($)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={newEntry.stopLoss}
+                      onChange={(e) => setNewEntry({...newEntry, stopLoss: e.target.value})}
                       className="w-full bg-gray-700 border-gray-600 rounded text-white px-3 py-2 text-sm"
                       placeholder="0.00"
                     />
@@ -274,42 +390,54 @@ const TradeJournal: React.FC = () => {
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead>
-              <tr className="bg-gray-700 text-left">
-                <th className="px-4 py-3 text-xs font-medium text-gray-300 uppercase">Date</th>
-                <th className="px-4 py-3 text-xs font-medium text-gray-300 uppercase">Pair</th>
-                <th className="px-4 py-3 text-xs font-medium text-gray-300 uppercase">Type</th>
-                <th className="px-4 py-3 text-xs font-medium text-gray-300 uppercase">Entry</th>
-                <th className="px-4 py-3 text-xs font-medium text-gray-300 uppercase">Exit</th>
-                <th className="px-4 py-3 text-xs font-medium text-gray-300 uppercase">Profit</th>
-                <th className="px-4 py-3 text-xs font-medium text-gray-300 uppercase">Pips</th>
-                <th className="px-4 py-3 text-xs font-medium text-gray-300 uppercase">Strategy</th>
+            <thead className="bg-gray-900">
+              <tr>
+                <th className="px-4 py-3 text-xs font-medium text-gray-300 uppercase">DATE</th>
+                <th className="px-4 py-3 text-xs font-medium text-gray-300 uppercase">PAIR</th>
+                <th className="px-4 py-3 text-xs font-medium text-gray-300 uppercase">TYPE</th>
+                <th className="px-4 py-3 text-xs font-medium text-gray-300 uppercase">ENTRY</th>
+                <th className="px-4 py-3 text-xs font-medium text-gray-300 uppercase">EXIT</th>
+                <th className="px-4 py-3 text-xs font-medium text-gray-300 uppercase">STOP</th>
+                <th className="px-4 py-3 text-xs font-medium text-gray-300 uppercase">LOT</th>
+                <th className="px-4 py-3 text-xs font-medium text-gray-300 uppercase">PROFIT</th>
+                <th className="px-4 py-3 text-xs font-medium text-gray-300 uppercase">PIPS</th>
+                <th className="px-4 py-3 text-xs font-medium text-gray-300 uppercase">R:R</th>
+                <th className="px-4 py-3 text-xs font-medium text-gray-300 uppercase">STRATEGY</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-700">
-              {mockTrades.map((trade) => (
-                <tr key={trade.id} className="hover:bg-gray-750">
-                  <td className="px-4 py-3 text-sm text-gray-300">{trade.date}</td>
-                  <td className="px-4 py-3 text-sm text-gray-300">{trade.pair}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex items-center text-xs px-2 py-1 rounded-full ${
-                      trade.type === 'long'
-                        ? 'bg-green-500 bg-opacity-20 text-green-400'
-                        : 'bg-red-500 bg-opacity-20 text-red-400'
-                    }`}>
-                      {trade.type === 'long' ? <ArrowUpRight className="h-3 w-3 mr-1" /> : <ArrowDownRight className="h-3 w-3 mr-1" />}
-                      {trade.type}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-300">${trade.entry}</td>
-                  <td className="px-4 py-3 text-sm text-gray-300">${trade.exit}</td>
-                  <td className={`px-4 py-3 text-sm font-medium ${trade.profit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                    ${trade.profit}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-300">{trade.pips}</td>
-                  <td className="px-4 py-3 text-sm text-gray-300">{trade.strategy}</td>
+              {trades.length === 0 ? (
+                <tr>
+                  <td colSpan={11} className="text-center text-gray-400 py-8">No trades yet. Add your first trade!</td>
                 </tr>
-              ))}
+              ) : (
+                trades.map((trade) => (
+                  <tr key={trade.id} className="hover:bg-gray-750">
+                    <td className="px-4 py-3 text-sm text-gray-300">{trade.entryDate?.replace('T', ' ')}</td>
+                    <td className="px-4 py-3 text-sm text-gray-300">{trade.pair}</td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center text-xs px-2 py-1 rounded-full ${
+                        trade.type === 'long'
+                          ? 'bg-green-500 bg-opacity-20 text-green-400'
+                          : 'bg-red-500 bg-opacity-20 text-red-400'
+                      }`}>
+                        {trade.type === 'long' ? <ArrowUpRight className="h-3 w-3 mr-1" /> : <ArrowDownRight className="h-3 w-3 mr-1" />}
+                        {trade.type}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-300">${trade.entry.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-sm text-gray-300">${trade.exit.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-sm text-gray-300">${trade.stopLoss.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-sm text-gray-300">{trade.lotSize.toFixed(2)}</td>
+                    <td className={`px-4 py-3 text-sm font-medium ${trade.profit >= 0 ? 'text-green-500' : 'text-red-500'}`}> 
+                      ${trade.profit.toFixed(2)}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-300">{trade.pips.toFixed(1)}</td>
+                    <td className="px-4 py-3 text-sm text-gray-300">{trade.rr.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-sm text-gray-300">{trade.strategy}</td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -321,11 +449,11 @@ const TradeJournal: React.FC = () => {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="bg-gray-700 p-3 rounded-lg">
               <div className="text-xs text-gray-400 mb-1">Best Trade</div>
-              <div className="text-green-500 font-medium">${stats.bestTrade}</div>
+              <div className="text-green-500 font-medium">{stats.bestTrade !== 0 ? `$${stats.bestTrade}` : '--'}</div>
             </div>
             <div className="bg-gray-700 p-3 rounded-lg">
               <div className="text-xs text-gray-400 mb-1">Worst Trade</div>
-              <div className="text-red-500 font-medium">${stats.worstTrade}</div>
+              <div className="text-red-500 font-medium">{stats.worstTrade !== 0 ? `$${stats.worstTrade}` : '--'}</div>
             </div>
             <div className="bg-gray-700 p-3 rounded-lg">
               <div className="text-xs text-gray-400 mb-1">Avg Hold Time</div>
@@ -346,14 +474,11 @@ const TradeJournal: React.FC = () => {
                 <Clock className="h-4 w-4 text-gray-400 mr-2" />
                 <span className="text-sm text-gray-300">Average Trade Duration</span>
               </div>
-              <span className="text-sm font-medium text-white">4h 25m</span>
+              <span className="text-sm font-medium text-white">{stats.averageHoldTime}</span>
             </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <DollarSign className="h-4 w-4 text-gray-400 mr-2" />
-                <span className="text-sm text-gray-300">Risk/Reward Ratio</span>
-              </div>
-              <span className="text-sm font-medium text-white">1:2.5</span>
+            <div className="flex flex-col">
+              <span className="text-xs text-gray-400">Average Pips</span>
+              <span className="text-2xl font-semibold text-white">{Number(stats.averagePips).toFixed(2)}</span>
             </div>
           </div>
         </div>
