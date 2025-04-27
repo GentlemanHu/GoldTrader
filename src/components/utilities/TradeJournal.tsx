@@ -1,25 +1,12 @@
 import React, { useState } from 'react';
 import { Calendar, ArrowUpRight, ArrowDownRight, Clock, Plus, Upload, X } from 'lucide-react';
+import { useTradeStore } from '../../store/useTradeStore';
 
-interface Trade {
-  id: string;
-  entryDate: string; // ISO string, includes date and time
-  exitDate: string;  // ISO string, includes date and time
-  holdMs: number;    // Hold time in milliseconds
-  pair: string;
-  type: 'long' | 'short';
-  entry: number;
-  exit: number;
-  stopLoss: number;
-  lotSize: number;   // Lot size for this trade
-  profit: number;
-  pips: number;
-  rr: number;        // Risk/Reward ratio for this trade
-  strategy: string;
-  notes: string;
-}
+
 
 const TradeJournal: React.FC = () => {
+  // Track which trade is being edited
+  const [editId, setEditId] = useState<string | null>(null);
   const [dateRange] = useState('This Month');
   const [showModal, setShowModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
@@ -35,8 +22,11 @@ const TradeJournal: React.FC = () => {
     notes: ''
   });
   
-  // User trades state (starts empty)
-  const [trades, setTrades] = useState<Trade[]>([]);
+  // Zustand trades store
+  const trades = useTradeStore((state) => state.trades);
+  const addTrade = useTradeStore((state) => state.addTrade);
+  const removeTrade = useTradeStore((state) => state.removeTrade);
+
 
   // Compute stats from trades
   const stats = React.useMemo(() => {
@@ -122,8 +112,30 @@ const TradeJournal: React.FC = () => {
     const rr = risk !== 0 ? Math.abs(reward / risk) : 0;
     // Correct pip value for XAUUSD: $100 per pip per standard lot (1 lot = 100 oz)
     const profit = parseFloat((pips * 100 * lotSize).toFixed(2));
-    setTrades(prev => [
-      {
+    if (editId) {
+      // Edit mode: update existing trade
+      removeTrade(editId);
+      addTrade({
+        id: editId,
+        entryDate: newEntry.entryDate,
+        exitDate: newEntry.exitDate,
+        pair: 'XAUUSD',
+        type: newEntry.type as 'long' | 'short',
+        entry: entryPrice,
+        exit: exitPrice,
+        stopLoss,
+        lotSize,
+        profit,
+        pips: parseFloat(pips.toFixed(1)),
+        rr: parseFloat(rr.toFixed(2)),
+        strategy: newEntry.strategy,
+        notes: newEntry.notes,
+        holdMs,
+      });
+      setEditId(null);
+    } else {
+      // Add mode: add new trade
+      addTrade({
         id: Date.now().toString(),
         entryDate: newEntry.entryDate,
         exitDate: newEntry.exitDate,
@@ -139,9 +151,8 @@ const TradeJournal: React.FC = () => {
         strategy: newEntry.strategy,
         notes: newEntry.notes,
         holdMs,
-      },
-      ...prev
-    ]);
+      });
+    }
     setShowModal(false);
     setSelectedImage(null);
     setNewEntry({
@@ -411,7 +422,7 @@ const TradeJournal: React.FC = () => {
                   <td colSpan={11} className="text-center text-gray-400 py-8">No trades yet. Add your first trade!</td>
                 </tr>
               ) : (
-                trades.map((trade) => (
+                 trades.map((trade) => (
                   <tr key={trade.id} className="hover:bg-gray-750">
                     <td className="px-4 py-3 text-sm text-gray-300">{trade.entryDate?.replace('T', ' ')}</td>
                     <td className="px-4 py-3 text-sm text-gray-300">{trade.pair}</td>
@@ -435,6 +446,24 @@ const TradeJournal: React.FC = () => {
                     <td className="px-4 py-3 text-sm text-gray-300">{trade.pips.toFixed(1)}</td>
                     <td className="px-4 py-3 text-sm text-gray-300">{trade.rr.toFixed(2)}</td>
                     <td className="px-4 py-3 text-sm text-gray-300">{trade.strategy}</td>
+                    <td className="px-4 py-3 text-sm text-gray-300 flex gap-2">
+                      <button className="text-yellow-400 hover:underline" onClick={() => {
+                        setShowModal(true);
+                        setEditId(trade.id);
+                        setNewEntry({
+                          entryDate: trade.entryDate.slice(0, 16),
+                          exitDate: trade.exitDate.slice(0, 16),
+                          type: trade.type,
+                          entry: trade.entry.toString(),
+                          exit: trade.exit.toString(),
+                          stopLoss: trade.stopLoss.toString(),
+                          lotSize: trade.lotSize.toString(),
+                          strategy: trade.strategy,
+                          notes: trade.notes
+                        });
+                      }}>Edit</button>
+                      <button className="text-red-400 hover:underline" onClick={() => removeTrade(trade.id)}>Delete</button>
+                    </td>
                   </tr>
                 ))
               )}
