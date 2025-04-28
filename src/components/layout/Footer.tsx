@@ -10,9 +10,7 @@ const Footer: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div>
             <div className="flex items-center mb-4">
-              <div className="bg-amber-500 w-8 h-8 rounded-md mr-2 flex items-center justify-center">
-                <span className="text-gray-900 font-bold text-lg">G</span>
-              </div>
+              <img src="/goldtrader-logo.svg" alt="GoldTrader Logo" className="w-8 h-8 mr-2 rounded-md bg-white p-0.5" />
               <h3 className="text-white font-semibold text-lg">
                 GoldTrader<span className="text-amber-500">AI</span>
               </h3>
@@ -55,10 +53,10 @@ const Footer: React.FC = () => {
               </li>
             </ul>
             <div className="flex space-x-4 mt-4">
-              <a href="#" className="text-gray-400 hover:text-white">
+              <a href="#" className="text-gray-400 hover:text-white" title="Twitter">
                 <Twitter className="h-5 w-5" />
               </a>
-              <a href="#" className="text-gray-400 hover:text-white">
+              <a href="#" className="text-gray-400 hover:text-white" title="GitHub">
                 <Github className="h-5 w-5" />
               </a>
             </div>
