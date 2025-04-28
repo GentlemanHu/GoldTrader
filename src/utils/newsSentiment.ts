@@ -42,16 +42,40 @@ export async function fetchGoldNews(count = 10): Promise<NewsItemRaw[]> {
   }));
 }
 
-// Analyze sentiment using Twinword
+// Analyze sentiment using Twinword with RapidAPI fallback
 export async function analyzeSentimentTwinword(text: string): Promise<{ type: 'positive'|'negative'|'neutral', score: number }> {
-  const resp = await axios.post(
-    'https://api.twinword.com/api/v7/text/sentiment/',
-    new URLSearchParams({ text }),
-    { headers: { 'X-Twaip-Key': TWINWORD_API_KEY } }
-  );
-  const data = resp.data as { type: 'positive'|'negative'|'neutral', score: number|string };
-  const { type, score } = data;
-  return { type, score: typeof score === 'number' ? score : parseFloat(score) };
+  const RAPIDAPI_KEY = import.meta.env.VITE_RAPIDAPI_KEY;
+  // Try RapidAPI first
+  try {
+    const rapidResp = await axios.get(
+      'https://twinword-sentiment-analysis.p.rapidapi.com/analyze/',
+      {
+        params: { text },
+        headers: {
+          'x-rapidapi-key': RAPIDAPI_KEY,
+          'x-rapidapi-host': 'twinword-sentiment-analysis.p.rapidapi.com'
+        }
+      }
+    );
+    const data = rapidResp.data as { type: 'positive'|'negative'|'neutral', score: number|string };
+    const { type, score } = data;
+    return { type, score: typeof score === 'number' ? score : parseFloat(score) };
+  } catch (err) {
+    // fallback to direct Twinword API
+    try {
+      const resp = await axios.post(
+        'https://api.twinword.com/api/v7/text/sentiment/',
+        new URLSearchParams({ text }),
+        { headers: { 'X-Twaip-Key': TWINWORD_API_KEY } }
+      );
+      const data = resp.data as { type: 'positive'|'negative'|'neutral', score: number|string };
+      const { type, score } = data;
+      return { type, score: typeof score === 'number' ? score : parseFloat(score) };
+    } catch (e) {
+      // fallback to neutral if both fail
+      return { type: 'neutral', score: 0 };
+    }
+  }
 }
 
 // Get enriched news with sentiment
