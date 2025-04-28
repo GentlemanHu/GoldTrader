@@ -1,11 +1,15 @@
 import React, { useState } from 'react';
-import { RefreshCw, Download, TrendingUp, TrendingDown } from 'lucide-react';
+import { RefreshCw, TrendingUp, TrendingDown } from 'lucide-react';
 
 import TradingViewSymbolInfo from '../market/TradingViewSymbolInfo';
 import TradingViewAdvancedChart from '../market/TradingViewAdvancedChart';
 import TradingViewTechnicalAnalysis from '../market/TradingViewTechnicalAnalysis';
 import TradingViewEconomicCalendar from '../market/TradingViewEconomicCalendar';
 import TradingViewNews from '../market/TradingViewNews';
+
+
+import { fetchForexTimeSeries } from '../../utils/api';
+// No pivotpoints in technicalindicators; calculate manually below.
 
 const MarketData: React.FC = () => {
   const [timeframe, setTimeframe] = useState('1D');
@@ -18,13 +22,54 @@ const MarketData: React.FC = () => {
     change: string;
     isPositive: boolean;
   };
-  type MarketNews = {
-    id: string;
-    title: string;
-    source: string;
-    time: string;
-    impact: 'high' | 'medium' | 'low';
-  };
+
+
+  // Support & Resistance state
+  const [levels, setLevels] = useState({
+    strongResistance: undefined as number | undefined,
+    weakResistance: undefined as number | undefined,
+    weakSupport: undefined as number | undefined,
+    strongSupport: undefined as number | undefined,
+  });
+  const [srLoading, setSrLoading] = useState(false);
+  const [srError, setSrError] = useState<string | null>(null);
+
+  // Debounced fetch for support/resistance (avoid rate limits)
+  React.useEffect(() => {
+    let debounceTimeout: NodeJS.Timeout;
+    setSrLoading(true);
+    setSrError(null);
+    debounceTimeout = setTimeout(async () => {
+      try {
+        const priceData = await fetchForexTimeSeries('1day', 30);
+        // technicalindicators does not provide pivotpoints, so we calculate classic pivots manually
+        const highs = priceData.map((c: any) => parseFloat(c.high)).reverse();
+        const lows = priceData.map((c: any) => parseFloat(c.low)).reverse();
+        const closes = priceData.map((c: any) => parseFloat(c.close)).reverse();
+        // Use the most recent candle for pivots
+        const high = highs[highs.length - 1];
+        const low = lows[lows.length - 1];
+        const close = closes[closes.length - 1];
+        // Classic Pivot Point formula
+        const PP = (high + low + close) / 3;
+        const R1 = 2 * PP - low;
+        const S1 = 2 * PP - high;
+        const R2 = PP + (high - low);
+        const S2 = PP - (high - low);
+        setLevels({
+          strongResistance: R2,
+          weakResistance: R1,
+          weakSupport: S1,
+          strongSupport: S2,
+        });
+        setSrLoading(false);
+      } catch (err: any) {
+        setSrError(err?.message || 'Failed to load technical analysis');
+        setSrLoading(false);
+      }
+    }, 500); // 500ms debounce
+    return () => clearTimeout(debounceTimeout);
+  }, []);
 
   const indicators: MarketIndicator[] = [
     { name: 'RSI (14)', value: '65.8', change: '+2.3', isPositive: true },
@@ -33,22 +78,8 @@ const MarketData: React.FC = () => {
     { name: 'Volume', value: '125.4K', change: '+12.5%', isPositive: true }
   ];
 
-  const marketNews: MarketNews[] = [
-    {
-      id: '1',
-      title: 'Fed Minutes Show Officials Discussed Inflation Risks',
-      source: 'Bloomberg',
-      time: '2 hours ago',
-      impact: 'high'
-    },
-    {
-      id: '2',
-      title: 'Gold Prices Rally on Geopolitical Tensions',
-      source: 'Reuters',
-      time: '4 hours ago',
-      impact: 'medium'
-    }
-  ];
+  // Use real-time news sentiment data
+  
 
   const correlations = [
     { asset: 'USD', value: -0.85, isStrong: true },
@@ -160,87 +191,38 @@ const MarketData: React.FC = () => {
               </div>
             </div>
           </div>
-          <div className="bg-gray-800 rounded-lg p-4">
-            <h2 className="text-lg font-semibold text-white mb-4">Support & Resistance</h2>
-            <div className="space-y-3">
-              <div>
-                <div className="text-xs text-gray-400 mb-1">Strong Resistance</div>
-                <div className="text-white font-medium">1985.60</div>
-              </div>
-              <div>
-                <div className="text-xs text-gray-400 mb-1">Weak Resistance</div>
-                <div className="text-white font-medium">1975.30</div>
-              </div>
-              <div>
-                <div className="text-xs text-gray-400 mb-1">Weak Support</div>
-                <div className="text-white font-medium">1955.80</div>
-              </div>
-              <div>
-                <div className="text-xs text-gray-400 mb-1">Strong Support</div>
-                <div className="text-white font-medium">1945.20</div>
-              </div>
-            </div>
-          </div>
+
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
-            <div className="bg-gray-800 rounded-lg p-4">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-semibold text-white">Market News</h2>
-                <button className="text-xs text-gray-400 hover:text-white flex items-center">
-                  <Download className="h-3 w-3 mr-1" />
-                  Export
-                </button>
-              </div>
-              <div className="space-y-4">
-                {marketNews.map((news) => (
-                  <div key={news.id} className="border-b border-gray-700 pb-4 last:border-0 last:pb-0">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h3 className="text-white font-medium mb-1">{news.title}</h3>
-                        <div className="flex items-center text-xs text-gray-400">
-                          <span>{news.source}</span>
-                          <span className="mx-2">•</span>
-                          <span>{news.time}</span>
-                        </div>
-                      </div>
-                      <span className={`text-xs px-2 py-1 rounded ${
-                        news.impact === 'high'
-                          ? 'bg-red-500 bg-opacity-20 text-red-400'
-                          : news.impact === 'medium'
-                          ? 'bg-amber-500 bg-opacity-20 text-amber-400'
-                          : 'bg-blue-500 bg-opacity-20 text-blue-400'
-                      }`}>
-                        {news.impact} impact
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-          <div className="bg-gray-800 rounded-lg p-4">
-            <h2 className="text-lg font-semibold text-white mb-4">Support & Resistance</h2>
+        {/* Support & Resistance Grid Card (Real-Time) */}
+        <div className="bg-gray-800 rounded-lg p-4 mt-6 max-w-md mx-auto">
+          <h2 className="text-lg font-semibold text-white mb-4">Support & Resistance</h2>
+          {srLoading && (
+            <div className="text-gray-400 text-center py-4">Loading technical analysis...</div>
+          )}
+          {srError && (
+            <div className="text-red-500 text-center py-4">{srError}</div>
+          )}
+          {!srLoading && !srError && (
             <div className="space-y-3">
               <div>
                 <div className="text-xs text-gray-400 mb-1">Strong Resistance</div>
-                <div className="text-white font-medium">1985.60</div>
+                <div className="text-white font-medium">{levels.strongResistance ?? '-'}</div>
               </div>
               <div>
                 <div className="text-xs text-gray-400 mb-1">Weak Resistance</div>
-                <div className="text-white font-medium">1975.30</div>
+                <div className="text-white font-medium">{levels.weakResistance ?? '-'}</div>
               </div>
               <div>
                 <div className="text-xs text-gray-400 mb-1">Weak Support</div>
-                <div className="text-white font-medium">1955.80</div>
+                <div className="text-white font-medium">{levels.weakSupport ?? '-'}</div>
               </div>
               <div>
                 <div className="text-xs text-gray-400 mb-1">Strong Support</div>
-                <div className="text-white font-medium">1945.20</div>
+                <div className="text-white font-medium">{levels.strongSupport ?? '-'}</div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       </>
 
