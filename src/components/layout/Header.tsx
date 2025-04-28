@@ -28,9 +28,7 @@ const Header: React.FC<HeaderProps> = ({ className = '', onMenuClick }) => {
           <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="18" x2="21" y2="18" /></svg>
         </button>
         <div className="flex items-center mr-10">
-          <div className="bg-amber-500 w-8 h-8 rounded-md mr-2 flex items-center justify-center">
-            <span className="text-gray-900 font-bold text-lg">G</span>
-          </div>
+          <img src="/goldtrader-logo.svg" alt="GoldTrader Logo" className="w-8 h-8 mr-2 rounded-md bg-white p-0.5" />
           <h1 className="text-white font-semibold text-xl">
             GoldTrader<span className="text-amber-500 ml-1">AI</span>
           </h1>
