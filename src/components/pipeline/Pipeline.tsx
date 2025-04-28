@@ -1,9 +1,10 @@
 import React from 'react';
 import PipelineStatus from '../widgets/PipelineStatus';
-import { Settings, Play, PauseCircle, ArrowRightCircle, Workflow, Save } from 'lucide-react';
+import { Settings, Play, PauseCircle, ArrowRightCircle, Workflow } from 'lucide-react';
 import './Pipeline.css';
 import { usePipelineStore } from '../../store/usePipelineStore';
 import { NewsTextSummary, PatternTextSummary, StrategyTextSummary, BacktestTextSummary } from './PipelineTextSummaries';
+import BacktestFinalSummaryCard from './BacktestFinalSummaryCard';
 
 const Pipeline: React.FC = () => {
   const agents = usePipelineStore((state: any) => state.agents);
@@ -26,17 +27,6 @@ const Pipeline: React.FC = () => {
           <p className="text-gray-400">
             Configure and control the trading strategy pipeline
           </p>
-        </div>
-        
-        <div className="flex space-x-2">
-          <button className="flex items-center py-2 px-3 bg-gray-800 text-white rounded hover:bg-gray-700">
-            <Save className="h-4 w-4 mr-2" />
-            <span>Save Pipeline</span>
-          </button>
-          <button className="flex items-center py-2 px-3 bg-amber-500 text-gray-900 rounded hover:bg-amber-600">
-            <Play className="h-4 w-4 mr-2" />
-            <span>Run Pipeline</span>
-          </button>
         </div>
       </div>
       
@@ -142,6 +132,15 @@ const Pipeline: React.FC = () => {
                 </div>
               ))}
               
+              <div className="my-4">
+                <BacktestFinalSummaryCard
+                  newsResults={agents.find((a: any) => a.id === 'newsAgent')?.result}
+                  patternResult={agents.find((a: any) => a.id === 'patternAgent')?.result}
+                  strategyResult={agents.find((a: any) => a.id === 'strategyAgent')?.result}
+                  backtestResults={agents.find((a: any) => a.id === 'evaluationAgent')?.result}
+                />
+              </div>
+
               <div className="flex items-center justify-center relative">
                 <div className={`w-12 h-12 rounded-full flex items-center justify-center relative z-10 shadow-lg transition-all duration-500 ${pipelineStatus.progress === 100 ? 'bg-green-400 animate-glow' : 'bg-green-500'}`}>
                   <Workflow className="h-6 w-6 text-gray-900" />
