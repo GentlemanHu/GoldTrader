@@ -141,18 +141,42 @@ const Dashboard: React.FC = () => {
       </div>
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <SentimentChart data={[]} />
-        
+        <SentimentChart data={news} />
         <SummaryCard title="System Summary">
-          <p className="mb-2">
-            The Auto-Backtest + Strategy Generation Bot is currently monitoring XAUUSD (Gold) with a primary focus on daily and 4-hour timeframes.
-          </p>
-          <p className="mb-2">
-            Recent analysis indicates a <span className="text-green-500 font-medium">bullish bias</span> based on technical patterns and positive news sentiment.
-          </p>
-          <p>
-            Top performing strategy "Pattern-Based Breakout" has demonstrated a <span className="text-amber-500 font-medium">63% win rate</span> with a risk-reward ratio of 2.5.
-          </p>
+          {newsLoading ? (
+            <p className="text-gray-400">Loading summary...</p>
+          ) : newsError ? (
+            <p className="text-red-400">{newsError}</p>
+          ) : news.length === 0 ? (
+            <p className="text-gray-400">No news sentiment data available.</p>
+          ) : (
+            (() => {
+              // Analyze overall sentiment
+              const avgScore = news.reduce((sum, item) => sum + item.score, 0) / news.length;
+              let bias = 'neutral';
+              let biasClass = 'text-gray-300 font-medium';
+              if (avgScore > 0.1) { bias = 'bullish'; biasClass = 'text-green-500 font-medium'; }
+              else if (avgScore < -0.1) { bias = 'bearish'; biasClass = 'text-red-400 font-medium'; }
+              // Find the most recent news
+              const latest = news[0];
+              return (
+                <>
+                  <p className="mb-2">
+                    The Auto-Backtest + Strategy Generation Bot is currently monitoring XAUUSD (Gold) with a primary focus on daily and 4-hour timeframes.
+                  </p>
+                  <p className="mb-2">
+                    Recent analysis indicates a <span className={biasClass}>{bias} bias</span> based on technical patterns and news sentiment (avg score: {avgScore.toFixed(2)}).
+                  </p>
+                  <p className="mb-2">
+                    Most recent impactful news: <span className="font-medium text-amber-400">{latest.title}</span> <span className="text-gray-400">({latest.date})</span> — <span className="text-gray-300">{latest.summary}</span>
+                  </p>
+                  <p>
+                    Top performing strategy "Pattern-Based Breakout" has demonstrated a <span className="text-amber-500 font-medium">63% win rate</span> with a risk-reward ratio of 2.5.
+                  </p>
+                </>
+              );
+            })()
+          )}
         </SummaryCard>
       </div>
     </div>

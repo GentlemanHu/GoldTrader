@@ -1,24 +1,30 @@
 import React, { useState } from 'react';
-import { LineChart, RefreshCw, Download, Filter, TrendingUp, TrendingDown, AlertCircle } from 'lucide-react';
-import { useMarketData } from '../../hooks/useMarketData';
+import { RefreshCw, Download, TrendingUp, TrendingDown } from 'lucide-react';
+
+import TradingViewSymbolInfo from '../market/TradingViewSymbolInfo';
+import TradingViewAdvancedChart from '../market/TradingViewAdvancedChart';
+import TradingViewTechnicalAnalysis from '../market/TradingViewTechnicalAnalysis';
+import TradingViewEconomicCalendar from '../market/TradingViewEconomicCalendar';
+import TradingViewNews from '../market/TradingViewNews';
 
 const MarketData: React.FC = () => {
   const [timeframe, setTimeframe] = useState('1D');
   
-  const { 
-    data: sentimentData, 
-    loading: sentimentLoading 
-  } = useMarketData('sentiment', 300000); // 5 minutes
 
-  const { 
-    data: newsData, 
-    loading: newsLoading 
-  } = useMarketData('news', 600000); // 10 minutes
-
-  const { 
-    data: predictionData, 
-    loading: predictionLoading 
-  } = useMarketData('price-prediction', 300000); // 5 minutes
+  // Inline type definitions for indicators and news
+  type MarketIndicator = {
+    name: string;
+    value: string;
+    change: string;
+    isPositive: boolean;
+  };
+  type MarketNews = {
+    id: string;
+    title: string;
+    source: string;
+    time: string;
+    impact: 'high' | 'medium' | 'low';
+  };
 
   const indicators: MarketIndicator[] = [
     { name: 'RSI (14)', value: '65.8', change: '+2.3', isPositive: true },
@@ -86,6 +92,25 @@ const MarketData: React.FC = () => {
         </div>
       </div>
 
+      {/* TradingView Symbol Info Widget */}
+      <div className="mb-4">
+        <TradingViewSymbolInfo />
+      </div>
+      {/* TradingView Advanced Chart Widget */}
+      <div className="mb-4">
+        <TradingViewAdvancedChart />
+      </div>
+      {/* TradingView Technical Analysis & Economic Calendar Widgets */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+        <TradingViewTechnicalAnalysis />
+        <TradingViewEconomicCalendar />
+      </div>
+      {/* TradingView News Widget */}
+      <div className="mb-4">
+        <TradingViewNews />
+      </div>
+
+      {/* Retain custom indicators, correlations, and support/resistance for context */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {indicators.map((indicator) => (
           <div key={indicator.name} className="bg-gray-800 rounded-lg p-4">
@@ -111,111 +136,114 @@ const MarketData: React.FC = () => {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <div className="bg-gray-800 rounded-lg p-4">
-            <h2 className="text-lg font-semibold text-white mb-4">Technical Overview</h2>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="bg-gray-700 p-3 rounded-lg">
-                <div className="text-xs text-gray-400 mb-1">Trend</div>
-                <div className="text-green-500 font-medium">Bullish</div>
-                <div className="text-xs text-gray-400 mt-1">Strong</div>
-              </div>
-              <div className="bg-gray-700 p-3 rounded-lg">
-                <div className="text-xs text-gray-400 mb-1">Momentum</div>
-                <div className="text-amber-500 font-medium">Neutral</div>
-                <div className="text-xs text-gray-400 mt-1">Weakening</div>
-              </div>
-              <div className="bg-gray-700 p-3 rounded-lg">
-                <div className="text-xs text-gray-400 mb-1">Volatility</div>
-                <div className="text-red-500 font-medium">High</div>
-                <div className="text-xs text-gray-400 mt-1">Increasing</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-gray-800 rounded-lg p-4">
-          <h2 className="text-lg font-semibold text-white mb-4">Correlations</h2>
-          <div className="space-y-3">
-            {correlations.map((corr) => (
-              <div key={corr.asset} className="flex items-center justify-between">
-                <span className="text-gray-300">{corr.asset}</span>
-                <div className={`px-2 py-1 rounded text-xs ${
-                  Math.abs(corr.value) >= 0.5
-                    ? corr.value > 0 
-                      ? 'bg-green-500 bg-opacity-20 text-green-400'
-                      : 'bg-red-500 bg-opacity-20 text-red-400'
-                    : 'bg-gray-700 text-gray-400'
-                }`}>
-                  {corr.value > 0 ? '+' : ''}{corr.value}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <div className="bg-gray-800 rounded-lg p-4">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold text-white">Market News</h2>
-              <button className="text-xs text-gray-400 hover:text-white flex items-center">
-                <Download className="h-3 w-3 mr-1" />
-                Export
-              </button>
-            </div>
-            <div className="space-y-4">
-              {marketNews.map((news) => (
-                <div key={news.id} className="border-b border-gray-700 pb-4 last:border-0 last:pb-0">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="text-white font-medium mb-1">{news.title}</h3>
-                      <div className="flex items-center text-xs text-gray-400">
-                        <span>{news.source}</span>
-                        <span className="mx-2">•</span>
-                        <span>{news.time}</span>
-                      </div>
-                    </div>
-                    <span className={`text-xs px-2 py-1 rounded ${
-                      news.impact === 'high'
-                        ? 'bg-red-500 bg-opacity-20 text-red-400'
-                        : news.impact === 'medium'
-                        ? 'bg-amber-500 bg-opacity-20 text-amber-400'
-                        : 'bg-blue-500 bg-opacity-20 text-blue-400'
+      {/* Wrap the following adjacent elements in a fragment to fix JSX error */}
+      <>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <div className="bg-gray-800 rounded-lg p-4">
+              <h2 className="text-lg font-semibold text-white mb-4">Correlations</h2>
+              <div className="space-y-3">
+                {correlations.map((corr) => (
+                  <div key={corr.asset} className="flex items-center justify-between">
+                    <span className="text-gray-300">{corr.asset}</span>
+                    <div className={`px-2 py-1 rounded text-xs ${
+                      Math.abs(corr.value) >= 0.5
+                        ? corr.value > 0 
+                          ? 'bg-green-500 bg-opacity-20 text-green-400'
+                          : 'bg-red-500 bg-opacity-20 text-red-400'
+                        : 'bg-gray-700 text-gray-400'
                     }`}>
-                      {news.impact} impact
-                    </span>
+                      {corr.value > 0 ? '+' : ''}{corr.value}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="bg-gray-800 rounded-lg p-4">
+            <h2 className="text-lg font-semibold text-white mb-4">Support & Resistance</h2>
+            <div className="space-y-3">
+              <div>
+                <div className="text-xs text-gray-400 mb-1">Strong Resistance</div>
+                <div className="text-white font-medium">1985.60</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-400 mb-1">Weak Resistance</div>
+                <div className="text-white font-medium">1975.30</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-400 mb-1">Weak Support</div>
+                <div className="text-white font-medium">1955.80</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-400 mb-1">Strong Support</div>
+                <div className="text-white font-medium">1945.20</div>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-gray-800 rounded-lg p-4">
-          <h2 className="text-lg font-semibold text-white mb-4">Support & Resistance</h2>
-          <div className="space-y-3">
-            <div>
-              <div className="text-xs text-gray-400 mb-1">Strong Resistance</div>
-              <div className="text-white font-medium">1985.60</div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <div className="bg-gray-800 rounded-lg p-4">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-semibold text-white">Market News</h2>
+                <button className="text-xs text-gray-400 hover:text-white flex items-center">
+                  <Download className="h-3 w-3 mr-1" />
+                  Export
+                </button>
+              </div>
+              <div className="space-y-4">
+                {marketNews.map((news) => (
+                  <div key={news.id} className="border-b border-gray-700 pb-4 last:border-0 last:pb-0">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="text-white font-medium mb-1">{news.title}</h3>
+                        <div className="flex items-center text-xs text-gray-400">
+                          <span>{news.source}</span>
+                          <span className="mx-2">•</span>
+                          <span>{news.time}</span>
+                        </div>
+                      </div>
+                      <span className={`text-xs px-2 py-1 rounded ${
+                        news.impact === 'high'
+                          ? 'bg-red-500 bg-opacity-20 text-red-400'
+                          : news.impact === 'medium'
+                          ? 'bg-amber-500 bg-opacity-20 text-amber-400'
+                          : 'bg-blue-500 bg-opacity-20 text-blue-400'
+                      }`}>
+                        {news.impact} impact
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-            <div>
-              <div className="text-xs text-gray-400 mb-1">Weak Resistance</div>
-              <div className="text-white font-medium">1975.30</div>
-            </div>
-            <div>
-              <div className="text-xs text-gray-400 mb-1">Weak Support</div>
-              <div className="text-white font-medium">1955.80</div>
-            </div>
-            <div>
-              <div className="text-xs text-gray-400 mb-1">Strong Support</div>
-              <div className="text-white font-medium">1945.20</div>
+          </div>
+          <div className="bg-gray-800 rounded-lg p-4">
+            <h2 className="text-lg font-semibold text-white mb-4">Support & Resistance</h2>
+            <div className="space-y-3">
+              <div>
+                <div className="text-xs text-gray-400 mb-1">Strong Resistance</div>
+                <div className="text-white font-medium">1985.60</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-400 mb-1">Weak Resistance</div>
+                <div className="text-white font-medium">1975.30</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-400 mb-1">Weak Support</div>
+                <div className="text-white font-medium">1955.80</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-400 mb-1">Strong Support</div>
+                <div className="text-white font-medium">1945.20</div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </>
+
     </div>
   );
 };
